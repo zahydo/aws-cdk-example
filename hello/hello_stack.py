@@ -1,31 +1,30 @@
 from aws_cdk import (
-    aws_iam as iam,
-    aws_sqs as sqs,
-    aws_sns as sns,
-    aws_sns_subscriptions as subs,
-    core
+  core,
+  aws_lambda as _lambda,
+  aws_apigateway as apigw,
 )
 
-from .hello_construct import HelloConstruct
-
+from hitcounter import HitCounter
 
 class MyStack(core.Stack):
 
-    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
-        super().__init__(scope, id, **kwargs)
+  def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+    super().__init__(scope, id, **kwargs)
 
-        queue = sqs.Queue(
-            self, "MyFirstQueue",
-            visibility_timeout=core.Duration.seconds(300),
-        )
+    hello = _lambda.Function(
+      self, 'HelloHandler',
+      runtime=_lambda.Runtime.PYTHON_3_7,
+      code=_lambda.Code.asset('lambda'),
+      handler='hello.handler',
+    )
 
-        topic = sns.Topic(
-            self, "MyFirstTopic",
-            display_name="My First Topic"
-        )
+    hello_with_counter = HitCounter(
+      self,
+      'HelloHitCounter',
+      downstream=hello,
+    )
 
-        topic.add_subscription(subs.SqsSubscription(queue))
-
-        hello = HelloConstruct(self, "MyHelloConstruct", num_buckets=4)
-        user = iam.User(self, "MyUser")
-        hello.grant_read(user)
+    apigw.LambdaRestApi(
+      self, 'Endpoint',
+      handler=hello_with_counter.handler,
+    )
